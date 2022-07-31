@@ -80,6 +80,21 @@ scene.add(sunLight);
     planeTrailMask: await new TextureLoader().loadAsync("assets/mask.png"),
   };
 
+  // https://sketchfab.com/3d-models/cartoon-plane-f312ec9f87794bdd83630a3bc694d8ea#download
+  // "Cartoon Plane" (https://skfb.ly/UOLT) by antonmoek is licensed under Creative Commons Attribution
+  // (http://creativecommons.org/licenses/by/4.0/).
+  let plane = (await new GLTFLoader().loadAsync("assets/plane/scene.glb")).scene
+    .children[0];
+    let planesData = [
+        makePlane(plane, textures.planeTrailMask, envMap, scene),
+        makePlane(plane, textures.planeTrailMask, envMap, scene),
+        makePlane(plane, textures.planeTrailMask, envMap, scene),
+        makePlane(plane, textures.planeTrailMask, envMap, scene),
+        makePlane(plane, textures.planeTrailMask, envMap, scene),
+        makePlane(plane, textures.planeTrailMask, envMap, scene),
+        makePlane(plane, textures.planeTrailMask, envMap, scene),
+      ];
+
   let sphere = new Mesh(
     new SphereGeometry(10, 70, 70),
     new MeshPhysicalMaterial({
@@ -100,8 +115,78 @@ scene.add(sunLight);
   sphere.receiveShadow = true;
   scene.add(sphere);
 
+  let clock = new Clock();
+
   renderer.setAnimationLoop(() => {
+    let delta = clock.getDelta();
+
+    planesData.forEach((planeData) => {
+      let plane = planeData.group;
+
+      plane.position.set(0, 0, 0);
+      plane.rotation.set(0, 0, 0);
+      plane.updateMatrixWorld();
+
+      /**
+       * idea: first rotate like that:
+       *
+       *          y-axis
+       *  airplane  ^
+       *      \     |     /
+       *       \    |    /
+       *        \   |   /
+       *         \  |  /
+       *     angle ^
+       *
+       * then at the end apply a rotation on a random axis
+       */
+
+      planeData.rot += delta * 0.25;
+      //   The code is read from bottom to up for this section
+      // ------------------
+      plane.rotateOnAxis(planeData.randomAxis, planeData.randomAxisRot); // random axis
+      plane.rotateOnAxis(new Vector3(0, 1, 0), planeData.rot); // y-axis rotation
+      plane.rotateOnAxis(new Vector3(0, 0, 1), planeData.rad); // this decides the radius
+      plane.translateY(planeData.yOff);
+      plane.rotateOnAxis(new Vector3(1, 0, 0), +Math.PI * 0.5); // to make sure that the plane is facing upwards
+      // ------------------
+    });
+
     controls.update();
     renderer.render(scene, camera);
   });
 })();
+
+function nRandom() {
+  return Math.random() * 2 - 1;
+}
+
+function makePlane(planeMesh, trailTexture, envMap, scene) {
+  let plane = planeMesh.clone();
+  plane.scale.set(0.001, 0.001, 0.001);
+  plane.position.set(0, 0, 0);
+  plane.rotation.set(0, 0, 0);
+  plane.updateMatrixWorld();
+
+  plane.traverse((object) => {
+    if (object instanceof Mesh) {
+      object.material.envMap = envMap;
+      object.castShadow = true;
+      object.receiveShadow = true;
+    }
+  });
+
+  let group = new Group();
+  group.add(plane);
+
+  scene.add(group);
+
+  return {
+    group,
+    yOff: 10.5 + Math.random() * 1.0,
+    rot: Math.PI * 2, // just to set a random starting point
+    rad: Math.random() * Math.PI * 0.45 + Math.PI * 0.05,
+    randomAxis: new Vector3(nRandom(), nRandom(), nRandom()).normalize(),
+    randomAxisRot: Math.random() * Math.PI * 2,
+  };
+}
