@@ -130,8 +130,6 @@ window.addEventListener("mousemove", (e) => {
     makePlane(plane, textures.planeTrailMask, envMap, scene),
     makePlane(plane, textures.planeTrailMask, envMap, scene),
     makePlane(plane, textures.planeTrailMask, envMap, scene),
-    makePlane(plane, textures.planeTrailMask, envMap, scene),
-    makePlane(plane, textures.planeTrailMask, envMap, scene),
   ];
 
   //  -------- SPHERE MODEL --------
