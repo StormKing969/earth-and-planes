@@ -30,8 +30,8 @@ import anime from "https://cdn.skypack.dev/animejs@3.2.1";
 
 const scene = new Scene();
 
-let sunBackground = document.querySelector(".sun-background");
-let moonBackground = document.querySelector(".moon-background");
+let sunBackground = document.querySelector(".sun_bg");
+let moonBackground = document.querySelector(".moon_bg");
 
 const ringsScene = new Scene();
 
@@ -65,7 +65,6 @@ const sunLight = new DirectionalLight(
   new Color("#FFFFFF").convertSRGBToLinear(),
   3.5
 );
-
 sunLight.position.set(10, 20, 10);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 512;
@@ -77,6 +76,22 @@ sunLight.shadow.camera.bottom = -10;
 sunLight.shadow.camera.top = 10;
 sunLight.shadow.camera.right = 10;
 scene.add(sunLight);
+
+const moonLight = new DirectionalLight(
+  new Color("#77ccff").convertSRGBToLinear(),
+  0
+);
+moonLight.position.set(-10, 20, 10);
+moonLight.castShadow = true;
+moonLight.shadow.mapSize.width = 512;
+moonLight.shadow.mapSize.height = 512;
+moonLight.shadow.camera.near = 0.5;
+moonLight.shadow.camera.far = 100;
+moonLight.shadow.camera.left = -10;
+moonLight.shadow.camera.bottom = -10;
+moonLight.shadow.camera.top = 10;
+moonLight.shadow.camera.right = 10;
+scene.add(moonLight);
 
 let mousePos = new Vector2(0, 0);
 
@@ -106,6 +121,7 @@ window.addEventListener("mousemove", (e) => {
   // https://sketchfab.com/3d-models/cartoon-plane-f312ec9f87794bdd83630a3bc694d8ea#download
   // "Cartoon Plane" (https://skfb.ly/UOLT) by antonmoek is licensed under Creative Commons Attribution
   // (http://creativecommons.org/licenses/by/4.0/).
+  //  -------- PLANE MODEL --------
   let plane = (await new GLTFLoader().loadAsync("assets/plane/scene.glb")).scene
     .children[0];
   let planesData = [
@@ -118,13 +134,14 @@ window.addEventListener("mousemove", (e) => {
     makePlane(plane, textures.planeTrailMask, envMap, scene),
   ];
 
+  //  -------- SPHERE MODEL --------
   let sphere = new Mesh(
     new SphereGeometry(10, 70, 70),
     new MeshPhysicalMaterial({
       map: textures.map,
       roughnessMap: textures.spec,
       bumpMap: textures.bump,
-      bumpScale: 1,
+      bumpScale: 5,
       envMap,
       envMapIntensity: 0.4,
       sheen: 1,
@@ -134,10 +151,13 @@ window.addEventListener("mousemove", (e) => {
     })
   );
 
+  sphere.sunEnvIntensity = 0.4;
+  sphere.moonEnvIntensity = 0.1;
   sphere.rotation.y += Math.PI * 1.25;
   sphere.receiveShadow = true;
   scene.add(sphere);
 
+  //  -------- RING MODEL --------
   const ring1 = new Mesh(
     new RingGeometry(15, 13.5, 80, 1, 0),
     new MeshPhysicalMaterial({
@@ -155,6 +175,7 @@ window.addEventListener("mousemove", (e) => {
   ring1.moonOpacity = 0.03;
   ringsScene.add(ring1);
 
+  //  -------- RING MODEL --------
   const ring2 = new Mesh(
     // RingGeometry(outerRadius, innerRadius, number of vertices)
     new RingGeometry(16.5, 15.75, 80, 1, 0),
@@ -170,6 +191,7 @@ window.addEventListener("mousemove", (e) => {
   ring2.moonOpacity = 0.1;
   ringsScene.add(ring2);
 
+  //  -------- RING MODEL --------
   const ring3 = new Mesh(
     new RingGeometry(18, 17.75, 80),
     new MeshBasicMaterial({
@@ -183,6 +205,67 @@ window.addEventListener("mousemove", (e) => {
   ring3.sunOpacity = 0.35;
   ring3.moonOpacity = 0.03;
   ringsScene.add(ring3);
+
+  let daytime = true;
+  let animating = false;
+  window.addEventListener("mousemove", (e) => {
+    if(animating) return;
+
+    let anim = [0, 1];
+
+    if(e.clientX > (innerWidth - 200) && !daytime) {
+      anim = [1, 0];
+    } else if(e.clientX < 200 && daytime) {
+      anim = [0, 1];
+    } else {
+      return;
+    }
+
+    animating = true;
+
+    let obj = { t: 0 };
+
+    anime({
+      targets: obj, // what js to animate
+      t: anim,
+      complete: () => {
+        animating = false;
+        daytime = !daytime;
+      },
+      update: () => {
+        sunLight.intensity = 3.5 * (1 - obj.t);
+        moonLight.intensity = 3.5 * obj.t;
+
+        sunLight.position.setY(20 * (1 - obj.t));
+        moonLight.position.setY(20 * obj.t);
+
+        sphere.material.sheen = 1 - obj.t;
+
+        scene.children.forEach((child) => {
+          child.traverse((object) => {
+            if (object instanceof Mesh && object.material.envMap) {
+              // change material environment intensity if children of scene have envMap property using linear interpolation
+              object.material.envMapIntensity =
+                object.sunEnvIntensity * (1 - obj.t) +
+                object.moonEnvIntensity * obj.t;
+            }
+          });
+        });
+
+        ringsScene.children.forEach((child, i) => {
+          child.traverse((object) => {
+            object.material.opacity =
+              object.sunOpacity * (1 - obj.t) + object.moonOpacity * obj.t;
+          });
+        });
+
+        sunBackground.style.opacity = 1 - obj.t;
+        moonBackground.style.opacity = obj.t;
+      },
+      easing: "easeInOutSine",
+      duration: 1000,
+    });
+  });
 
   let clock = new Clock();
 
@@ -257,6 +340,8 @@ function makePlane(planeMesh, trailTexture, envMap, scene) {
   plane.traverse((object) => {
     if (object instanceof Mesh) {
       object.material.envMap = envMap;
+      object.sunEnvIntensity = 1;
+      object.moonEnvIntensity = 0.3;
       object.castShadow = true;
       object.receiveShadow = true;
     }
@@ -277,8 +362,8 @@ function makePlane(planeMesh, trailTexture, envMap, scene) {
       alphaMap: trailTexture,
     })
   );
-  //   trail.sunEnvIntensity = 3;
-  //   trail.moonEnvIntensity = 0.7;
+  trail.sunEnvIntensity = 3;
+  trail.moonEnvIntensity = 0.7;
   trail.rotateX(Math.PI);
   trail.translateY(1.1);
 
